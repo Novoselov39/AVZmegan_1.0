@@ -14,7 +14,6 @@ String gps_monitor(){
   
   gpsSerial.begin(9600);
 
-  // For one second we parse GPS data and report some key values
   for (unsigned long start = millis(); millis() - start < 1000;)
   {
     while (gpsSerial.available())
@@ -40,7 +39,7 @@ String gps_monitor(){
   flon_gps=String(flon == TinyGPS::GPS_INVALID_F_ANGLE ? 0.0 : flon, 6);
   }
   html1=html0+flat_gps+html2+flon_gps+html3;  
-  //Serial.println(html1);
+
 
    
   gpsSerial.end();

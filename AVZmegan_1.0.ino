@@ -4,13 +4,10 @@
 #include <OneWire.h>
 #include <GyverButton.h>
 GButton myButt1;
-//#define MESSAGE_LENGTH 10
 #include <TinyGPS.h>
 TinyGPS gps;
-
 SoftwareSerial SIM900(10, 9);                                  // RX, TX
 SoftwareSerial gpsSerial(12, 11);
-//char message[MESSAGE_LENGTH];
 #define key 6 // пин ключа
 #define start_stop 4// пин кнопки старт стоп
 #define door_limit 7// пин концевика двери
@@ -18,35 +15,27 @@ SoftwareSerial gpsSerial(12, 11);
 #define stop_1 5// педаль тормоза первый контакт
 #define v_in_pin 0 //делитель ннапряжения
 #define remote_pin 2//пин пулта
-String vind;
-boolean eng_on=false;
-boolean report=false;
-boolean suc=false;
-boolean avtopusk=false; //автозапуск на старте?
-boolean mun=false;
-boolean vc=false;
-boolean T_pusk;// пуск по температуре
-byte T_temp_pusk;//температура пуска
-long atimer=NAN;  //таймер работы мотора
-//long btimer=NAN; //таймер простоя при автомзапуске
-//long ctimer=millis(); //таймер проверки связи
-long xertimer2=millis();
-long tme=0;
-//int starter=0;
-byte progrev_min; 
-byte every; 
-float vin = 0.0;
-//float vvin = 0.0;
-float vout = 0.0;
+boolean eng_on=false;// статус мотора работает/не работает
+boolean suc=false; //флаг проверка статус машины завел/не завел sucsess or no
+boolean avtopusk=false; //флаг работы автозапуска
+//boolean manual=false; //флаг ручного запуска
+boolean TPusk;// пуск по температуре
+byte TTempPusk;//температура пуска TTempPusk
+long atoPuskTimer=NAN;  //таймер автозапуска
+long TTiimer=NAN; // таймер запуска по температуре
+long tme=0; // переменная для вывода информации по времени работы\простоя
+byte progrev_min; //время прогрева мотора
+byte every; //время простоя мотора на автозапуске
+float vin = 0.0; //ппеременая для хранения текущего напряжения
 float const R1 = 90000.0; // сопротивление R1 (100K)
 float const R2 = 10000.0;
 float const kv=1.025;//поправ коэф на измерение напряжения
+float const vP=13.6;//Пороговое напряжение, по которому определяется статус мотора раб./не раб.
 
 
-String _response    = "";                                     // Переменная для хранения ответа модуля
+
+String _response    = "";    // Переменная для хранения ответа модуля
 String  AVZ= "AVZ ";
-//String txtok="Status: "+AVZ;
-//String txtok=AVZ;
 long lastUpdate = millis();                                   // Время последнего обновления
 long const updatePeriod   = 5000;                                  // Проверять каждую минуту
 
@@ -85,15 +74,15 @@ void setup() {
    every=EEPROM.read(0);                   //время "неработы" при автозапуске
    progrev_min=EEPROM.read(4);             //время прогрева
    avtopusk=EEPROM.read(1);                // статус автозапуска
-   T_pusk=EEPROM.read(2);
-   T_temp_pusk=EEPROM.read(3);
+   TPusk=EEPROM.read(2);
+   TTempPusk=EEPROM.read(3);
 }
 
 
 
 bool hasmsg = false;                                              // Флаг наличия сообщений к удалению
 void loop() {
-  //long xertimer=millis();
+
   if (lastUpdate + updatePeriod < millis() ) {                    // Пора проверить наличие новых сообщений
     do {
       _response = sendATCommand("AT+CMGL=\"REC UNREAD\",1", true);// Отправляем запрос чтения непрочитанных сообщений
@@ -149,15 +138,14 @@ void loop() {
   //if (Serial.available())  {                          // Ожидаем команды по Serial...
     //SIM900.write(Serial.read());                      // ...и отправляем полученную команду модему
   //};
-  //Serial.println(millis()-xertimer);
+
   //////////////////////////////автозапуск\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 //==================Мониторим нажатие кнопки пульта======================
-      //vout = (analogRead(v_in_pin) * 5.0) / 1024.0; //мерим напругу
-      //vvin = (vout / (R2/(R1+R2)))*kv;
+
       vin=volt();
       int analog(analogRead(remote_pin));
        myButt1.tick(analog > 1000);
-      if (myButt1.isHolded() and !eng_on and vin<13.6){
+      if (myButt1.isHolded() and !eng_on and vin<vP){
                     digitalWrite(key, HIGH);
                     delay(100);
                     digitalWrite(start_stop, HIGH);
@@ -175,7 +163,7 @@ void loop() {
                     sendATCommand("AT+CMGDA=\"DEL ALL\"", true);                   
         
       }
-      if (myButt1.isPress() && (eng_on || vin>13.6)){
+      if (myButt1.isPress() && (eng_on || vin>vP)){
           digitalWrite(door_open, HIGH);
           delay(500);
           digitalWrite(door_open, LOW);
@@ -188,21 +176,15 @@ void loop() {
       //==================Контролируем время простоя при автозапуске======================
     
       
-      if(millis()-atimer>60000*every and !eng_on){
-        Serial.println("zap");  
-        //volt();
-        //atimer=millis(); //обнуляем
-       //if((vin<11.8) and vc){
-          //gprs.sendSMS(phone, "Dvigatel zapushen po kontrolyu zaryada AKB!");//сначала отправляем смс о запуске, потом пытаемся запустить?
-          //eng_start(3,false);
-          //}else
+      if(millis()-atoPuskTimer>60000*every and !eng_on){
+        //Serial.println("zap");       
           if (avtopusk) eng_start(3,false); //модуль автозапуска каждые 2 часа           стандартный автозапуск по времени
           }
             
 
       //==================Контролируем время работы мотора======================
       
-      if (eng_on and (millis()-atimer>60000*progrev_min)){
+      if (eng_on and (millis()-atoPuskTimer>60000*progrev_min)){
       digitalWrite(key, HIGH);
       delay(100); 
       digitalWrite(start_stop, HIGH);
@@ -217,24 +199,21 @@ void loop() {
       digitalWrite(door_open, LOW);
       //Serial.println("stop");  
       eng_on=false;
-      atimer=millis();
-        if(mun) {
-        mun=false;
-        }
+      atoPuskTimer=millis();
       }
        //==================Автозаапуск по температуре======================
-       if (T_pusk and !eng_on){
+       if (TPusk and !eng_on){
         
-        if (millis()-xertimer2>10000){
-          if (DS18B20()<=-T_temp_pusk and vin<13.6){
+        if (millis()-TTiimer>120000){
+          if (DS18B20()<=-TTempPusk and vin<vP){
             sendSMS(phone,  String(DS18B20()),true,true);
             eng_start(3,false);
           }
           
-          xertimer2=millis();
+          TTiimer=millis();
         }
        }
-      //Serial.println(millis()-xertimer);
+
 }
 
 void parseSMS(String msg) {                                   // Парсим SMS

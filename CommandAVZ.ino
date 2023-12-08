@@ -21,14 +21,14 @@ if (result=="Help" or result=="help") {
    //================запуск по температуре=================
    if (result[0]=='t' or result[0]=='T') {
     String tmp=String(result[1])+String(result[2]);
-    T_temp_pusk=tmp.toInt();
+    TTempPusk=tmp.toInt();
     sendSMS(phone, "temp -"+tmp+" ustanovlena",true,true);
-    EEPROM.write(3,T_temp_pusk);
+    EEPROM.write(3,TTempPusk);
    }
    //================остальные команды=================     
  switch(result.toInt()){
       case 9:
-                            if (!eng_on and volt()<13.6) {
+                            if (!eng_on and volt()<vP) {
                                 digitalWrite(start_stop, HIGH);
                                 delay(500);
                                 digitalWrite(start_stop, LOW);
@@ -56,7 +56,7 @@ if (result=="Help" or result=="help") {
        case 8:
                                 //======открываем дверь дверь======
 
-                              if (!eng_on and volt()<13.6) {
+                              if (!eng_on and volt()<vP) {
                                   digitalWrite(key, HIGH);
                                   delay(500);
                                   digitalWrite(start_stop, HIGH);
@@ -79,8 +79,8 @@ if (result=="Help" or result=="help") {
                                 break;
                 case 1:
                                 //======запуск мотора======
-                                mun=true;
-                                if (!eng_on and volt()<13.6){
+                                //manual=true;
+                                if (!eng_on and volt()<vP){
                                
                                  eng_start(3,false);
  
@@ -97,16 +97,18 @@ if (result=="Help" or result=="help") {
                                 break;
                 case 5:
                                 //======остановка мотора======
-                                if (T_pusk==true) 
+                                if (TPusk==true) 
                                     {
-                                      T_pusk = false;                                    
-                                      EEPROM.write(2,T_pusk);
+                                      TPusk = false;                                    
+                                      EEPROM.write(2,TPusk);
                                       sendSMS(phone, AVZ +"po temp otkl",true,true);
+                                      TTiimer=NAN;
                                     }
                                 else{
-                                  T_pusk = true;                                    
-                                  EEPROM.write(2,T_pusk);
-                                  sendSMS(phone, AVZ+"po temp -"+String(T_temp_pusk)+" vkl",true,true);
+                                  TPusk = true;                                    
+                                  EEPROM.write(2,TPusk);
+                                  sendSMS(phone, AVZ+"po temp -"+String(TTempPusk)+" vkl",true,true);
+                                  TTiimer=millis();
                                 }
                                 break;
                 case 6:
@@ -114,27 +116,25 @@ if (result=="Help" or result=="help") {
                                 break;
                 case 3:
                                   //======вкл/выкл автозапуска======
-                                  if (avtopusk==true) 
+                                  if (avtopusk) 
                                     {sendSMS(phone,  AVZ+"yge rabotaet",true,true);}
                                   else{
                                   avtopusk=true;
                                   sendSMS(phone,  AVZ+String(every)+"m po "+String(progrev_min)+"m aktiv",true,true);
-                                  atimer=millis();
+                                  atoPuskTimer=millis();
                                   EEPROM.write(1,avtopusk);
                                   }
                                 
                                   break;
                   case 4:       
                                 //========информация об авто=========
-                                //volt();
+                                
                                 //Serial.println(memoryFree());
 
                                 String txtok=AVZ;                                
-                                if (!eng_on) tme=round(every-(millis()-atimer)/60000); //else tme=progrev_min-(millis()-atimer)/60000;
-                                 else tme=round(progrev_min-(millis()-atimer)/60000);
-                                 //sendSMS(phone,  txtok,true,false);
-                                 //txtok="";
-                                 //if(suc) {txtok=txtok+"Dvigatel zapushen. ";} else {txtok=txtok+"Dvigatel zaglushen. ";}
+                                if (!eng_on) tme=round(every-(millis()-atoPuskTimer)/60000);
+                                 else tme=round(progrev_min-(millis()-atoPuskTimer)/60000);
+                                
                                 if(avtopusk) {
                                   txtok=txtok+"rabotaet t: "+tme+"m";
                                   } 
@@ -144,8 +144,8 @@ if (result=="Help" or result=="help") {
                                   sendSMS(phone,  txtok,true,false);
                                   txtok="";
                                   if(eng_on and!avtopusk) txtok=txtok+" T: "+tme+"m";
-                                  if (T_pusk){
-                                    txtok=txtok+"\n"+AVZ+" po temp vkl pri -"+String(T_temp_pusk);                              
+                                  if (TPusk){
+                                    txtok=txtok+"\n"+AVZ+" po temp vkl pri -"+String(TTempPusk);                              
                                   }                                  
                                   txtok=txtok+"\nAKB: "+String(vin)+"v";
                                   sendSMS(phone,  txtok,false,false);

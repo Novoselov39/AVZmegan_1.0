@@ -14,22 +14,23 @@ void eng_start(int raz,boolean pult ){      //запуск дрыгателя
   digitalWrite(stop_1, LOW);//концевик тормоза
   delay(2000);                                                        
   digitalWrite(key, LOW);//вытаскиваем ключ
-  if (control_eng(vin)) suc=true; else suc=false;
- //if (volt()>vin+0.6) suc=true; else suc=false;                      
+  if (control_eng(vin)) suc=true; else suc=false;                    
   if (suc) {
-    if(!avtopusk or mun) 
+    if(!avtopusk) 
     {
       sendSMS(phone, "Eng start!",true,false);
-      sendSMS(phone, dht_sensor()+"\nt motora: "+String(DS18B20()),false,true);
+      sendSMS(phone, dht_sensor(),false,false);
+      sendSMS(phone, "t motora: "+String(DS18B20()),false,false);      
+      sendSMS(phone, "Start c "+String(tm)+" raza",false,true);
     }
     if (!pult){
       eng_on=true;
       digitalWrite(key, LOW);
-      atimer=millis();
+      atoPuskTimer=millis();
     }
-      Serial.print("завел с ");
-      Serial.print(tm);
-      Serial.println(" раза");
+//      Serial.print("завел с ");
+//      Serial.print(tm);
+//      Serial.println(" раза");
       break;
     }
   
@@ -41,9 +42,10 @@ void eng_start(int raz,boolean pult ){      //запуск дрыгателя
   sendSMS(phone, "\nAKB: "+String(volt())+"v",false,false);
   sendSMS(phone, dht_sensor()+"\nt motora: "+String(DS18B20()),false,true);
   eng_stop(); 
-  suc=false; 
-  vc=false; }
- } 
+  
+  
+ }
+} 
 
 //=======================процедура остановки мотора=================
   void eng_stop(){  
@@ -63,11 +65,10 @@ void eng_start(int raz,boolean pult ){      //запуск дрыгателя
   digitalWrite(door_open, HIGH);
   delay(100);
   digitalWrite(door_open, LOW);
-  eng_on=false;
-  //btimer=NAN;
-  atimer=NAN;
-  avtopusk=false;
-  mun=false;
+  eng_on=false;  
+  atoPuskTimer=NAN;
+  avtopusk=false;  
+  TPusk=false;
   sendSMS(phone, "Eng stop! "+AVZ +"otkl",true,true);
   EEPROM.write(1,avtopusk);
   
@@ -84,6 +85,7 @@ void eng_start(int raz,boolean pult ){      //запуск дрыгателя
     v=v/3;
     return v;
  }
+ 
  bool control_eng(float v){
   bool stat = false;
   if (volt()>=v+0.9){
